@@ -120,6 +120,8 @@ def receive_soil_moisture():
         conn.commit()
         conn.close()
 
+        print(str(int(datetime.now().timestamp() * 1000)))
+
         logging.info(f"기기 {data.get('device_id', 'smartfarm_01')}: 토양수분 {data['soil_moisture']}% 저장")
         return jsonify({'status': 'success', 'message': '데이터 저장 완료'}), 200
 
