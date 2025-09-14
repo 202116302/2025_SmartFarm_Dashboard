@@ -39,9 +39,9 @@ def init_database():
 
     # 기존 테이블에 새 컬럼 추가 (이미 있으면 무시)
     try:
-        cursor.execute('ALTER TABLE rainfall_data ADD COLUMN IF NOT EXISTS humidity FLOAT')
-        cursor.execute('ALTER TABLE rainfall_data ADD COLUMN IF NOT EXISTS temperature FLOAT')
-        cursor.execute('ALTER TABLE rainfall_data ALTER COLUMN rain_detected TYPE VARCHAR(20)')
+        cursor.execute('ALTER TABLE weather_data ADD COLUMN IF NOT EXISTS humidity FLOAT')
+        cursor.execute('ALTER TABLE weather_data ADD COLUMN IF NOT EXISTS temperature FLOAT')
+        cursor.execute('ALTER TABLE weather_data ALTER COLUMN rain_detected TYPE VARCHAR(20)')
         logging.info("테이블 스키마 업데이트 완료")
     except Exception as e:
         logging.info(f"테이블 업데이트 스킵: {e}")
@@ -60,7 +60,7 @@ def receive_data():
 
         # 온도, 습도 포함해서 데이터 저장
         cursor.execute('''
-            INSERT INTO rainfall_data (device_id, timestamp, rain_detected, humidity, temperature)
+            INSERT INTO weather_data (device_id, timestamp, rain_detected, humidity, temperature)
             VALUES (%s, %s, %s, %s, %s)
         ''', (
             data['device_id'],
@@ -86,7 +86,7 @@ def receive_data():
 def get_data():
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute('SELECT * FROM rainfall_data ORDER BY received_at DESC LIMIT 10')
+    cursor.execute('SELECT * FROM weather_data ORDER BY received_at DESC LIMIT 10')
     rows = cursor.fetchall()
     conn.close()
 
