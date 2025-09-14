@@ -107,11 +107,12 @@ def receive_soil_moisture():
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        # 토양수분 데이터 저장
+        # 테이블 구조에 맞게 저장
         cursor.execute('''
-            INSERT INTO soil_moisture_data (soil_moisture, timestamp)
-            VALUES (%s, %s)
+            INSERT INTO soil_moisture_data (device_id, soil_moisture, timestamp)
+            VALUES (%s, %s, %s)
         ''', (
+            data.get('device_id', 'smartfarm_01'),
             data['soil_moisture'],
             data.get('timestamp', str(int(datetime.now().timestamp() * 1000)))
         ))
@@ -119,13 +120,12 @@ def receive_soil_moisture():
         conn.commit()
         conn.close()
 
-        logging.info(f"토양수분 데이터 저장: {data['soil_moisture']}%")
-        return jsonify({'status': 'success', 'message': '토양수분 데이터 저장 완료'}), 200
+        logging.info(f"기기 {data.get('device_id', 'smartfarm_01')}: 토양수분 {data['soil_moisture']}% 저장")
+        return jsonify({'status': 'success', 'message': '데이터 저장 완료'}), 200
 
     except Exception as e:
         logging.error(f"토양수분 데이터 저장 오류: {e}")
         return jsonify({'error': str(e)}), 500
-
 
 # 기존 날씨 데이터 조회
 @app.route('/weather_data', methods=['GET'])
