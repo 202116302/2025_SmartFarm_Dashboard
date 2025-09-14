@@ -57,7 +57,7 @@ def send_data():
     try:
         response = requests.post(EC2_ENDPOINT, json=data, timeout=30)
         if response.status_code == 200:
-            logging.info(f"전송 성공: {rain_status}, 온도: {temperature}°C, 습도: {humidity}%")
+            logging.info(f"전송 성공: {rain_status}, 온도: {temperature}°C, 습도: {humidity}%, {datetime.now().isoformat()}")
         else:
             logging.error(f"전송 실패: {response.status_code}")
             logging.error(f"응답 내용: {response.text}")
