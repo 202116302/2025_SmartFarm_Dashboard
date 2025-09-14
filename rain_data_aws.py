@@ -28,7 +28,7 @@ def init_database():
             id SERIAL PRIMARY KEY,
             device_id VARCHAR(50),
             timestamp TIMESTAMP,
-            rain_detected BOOLEAN,
+            rain_detected VARCHAR(50),
             received_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
