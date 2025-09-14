@@ -100,6 +100,7 @@ def receive_weather_data():
 def receive_soil_moisture():
     try:
         data = request.get_json()
+        timestamp = str(datetime.now().isoformat())
 
         if not data or 'soil_moisture' not in data:
             return jsonify({'error': 'soil_moisture 데이터가 필요합니다'}), 400
@@ -114,13 +115,13 @@ def receive_soil_moisture():
         ''', (
             data.get('device_id', 'smartfarm_01'),
             data['soil_moisture'],
-            data.get('timestamp', str(int(datetime.now().timestamp() * 1000)))
+            timestamp
         ))
 
         conn.commit()
         conn.close()
 
-        print(str(int(datetime.now().timestamp() * 1000)))
+        print(timestamp)
 
         logging.info(f"기기 {data.get('device_id', 'smartfarm_01')}: 토양수분 {data['soil_moisture']}% 저장")
         return jsonify({'status': 'success', 'message': '데이터 저장 완료'}), 200
