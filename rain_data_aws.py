@@ -11,7 +11,8 @@ DB_CONFIG = {
     'host': 'localhost',
     'database': 'raindb',
     'user': 'postgres',
-    'password': 'smartfarm'
+    'password': 'smartfarm',
+    'port': 5432
 }
 
 
