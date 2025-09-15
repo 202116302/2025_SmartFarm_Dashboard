@@ -186,58 +186,6 @@ def get_soil_moisture_data():
         return jsonify({'error': str(e)}), 500
 
 
-# 최신 토양수분 상태 조회 (새로 추가)
-@app.route('/soil_status', methods=['GET'])
-def get_latest_soil_status():
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute('''
-            SELECT soil_moisture, received_at 
-            FROM soil_moisture_data 
-            ORDER BY received_at DESC 
-            LIMIT 1
-        ''')
-        row = cursor.fetchone()
-        conn.close()
-
-        if row:
-            moisture_level = row[0]
-            last_updated = str(row[1])
-
-            # 토양수분 상태 판단
-            if moisture_level >= 70:
-                status = "습함"
-                color = "blue"
-            elif moisture_level >= 40:
-                status = "적당"
-                color = "green"
-            elif moisture_level >= 20:
-                status = "건조"
-                color = "orange"
-            else:
-                status = "매우 건조"
-                color = "red"
-
-            return jsonify({
-                'soil_moisture': moisture_level,
-                'status': status,
-                'color': color,
-                'last_updated': last_updated,
-                'message': f'토양수분: {moisture_level}% ({status})'
-            })
-        else:
-            return jsonify({
-                'error': '토양수분 데이터가 없습니다',
-                'soil_moisture': None,
-                'status': '데이터 없음',
-                'color': 'gray'
-            }), 404
-
-    except Exception as e:
-        logging.error(f"토양수분 상태 조회 오류: {e}")
-        return jsonify({'error': str(e)}), 500
-
 
 @app.route('/health', methods=['GET'])
 def health():
@@ -299,11 +247,39 @@ def dashboard():
         return jsonify({'error': str(e)}), 500
 
 
-# 기존 코드 끝에 추가할 간결한 조회 API들
+# ========== 날씨 센서 API (단일 라즈베리파이) ==========
 
-# 1. 최신 강우 상태만 간단히 조회
-@app.route('/api/rain', methods=['GET'])
-def get_latest_rain():
+@app.route('/api/weather', methods=['GET'])
+def get_weather():
+    """최신 날씨 데이터 (온도, 습도, 강우) 조회"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT device_id, rain_detected, humidity, temperature, received_at 
+            FROM weather_data 
+            ORDER BY received_at DESC 
+            LIMIT 1
+        ''')
+        row = cursor.fetchone()
+        conn.close()
+
+        if row:
+            return jsonify({
+                'device_id': row[0],
+                'rain_status': row[1],
+                'humidity': row[2],
+                'temperature': row[3],
+                'last_updated': str(row[4])
+            })
+        return jsonify({'message': '날씨 데이터가 없습니다'}), 404
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/weather/rain', methods=['GET'])
+def get_rain_only():
+    """강우 상태만 조회"""
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -321,152 +297,190 @@ def get_latest_rain():
                 'rain_status': row[0],
                 'last_updated': str(row[1])
             })
-        return jsonify({'message': '데이터 없음'}), 404
+        return jsonify({'message': '강우 데이터가 없습니다'}), 404
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 
-# 2. 최신 온도만 간단히 조회
-@app.route('/api/temperature', methods=['GET'])
-def get_latest_temperature():
+# ========== 토양수분 센서 API (다중 센서) ==========
+
+@app.route('/api/soil/all', methods=['GET'])
+def get_all_soil_sensors():
+    """모든 토양수분 센서의 최신 데이터"""
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute('''
-            SELECT temperature, received_at 
-            FROM weather_data 
-            WHERE temperature IS NOT NULL
-            ORDER BY received_at DESC 
-            LIMIT 1
+            SELECT device_id, soil_moisture, received_at,
+                   ROW_NUMBER() OVER (PARTITION BY device_id ORDER BY received_at DESC) as rn
+            FROM soil_moisture_data
         ''')
-        row = cursor.fetchone()
+
+        # 각 디바이스별 최신 데이터만 필터링
+        all_rows = cursor.fetchall()
+        latest_data = [row for row in all_rows if row[3] == 1]  # rn = 1인 것만
+
         conn.close()
 
-        if row:
+        if latest_data:
+            sensors = []
+            for row in latest_data:
+                sensors.append({
+                    'device_id': row[0],
+                    'soil_moisture': row[1],
+                    'last_updated': str(row[2])
+                })
+
             return jsonify({
-                'temperature': row[0],
-                'last_updated': str(row[1])
+                'total_sensors': len(sensors),
+                'sensors': sensors
             })
-        return jsonify({'message': '데이터 없음'}), 404
+
+        return jsonify({'message': '토양수분 데이터가 없습니다'}), 404
+
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 
-# 3. 최신 습도만 간단히 조회
-@app.route('/api/humidity', methods=['GET'])
-def get_latest_humidity():
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute('''
-            SELECT humidity, received_at 
-            FROM weather_data 
-            WHERE humidity IS NOT NULL
-            ORDER BY received_at DESC 
-            LIMIT 1
-        ''')
-        row = cursor.fetchone()
-        conn.close()
-
-        if row:
-            return jsonify({
-                'humidity': row[0],
-                'last_updated': str(row[1])
-            })
-        return jsonify({'message': '데이터 없음'}), 404
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-
-# 4. 최신 토양수분만 간단히 조회
-@app.route('/api/soil', methods=['GET'])
-def get_latest_soil():
+@app.route('/api/soil/<device_id>', methods=['GET'])
+def get_soil_sensor(device_id):
+    """특정 토양수분 센서 데이터"""
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute('''
             SELECT soil_moisture, received_at 
             FROM soil_moisture_data 
+            WHERE device_id = %s
             ORDER BY received_at DESC 
             LIMIT 1
-        ''')
+        ''', (device_id,))
         row = cursor.fetchone()
         conn.close()
 
         if row:
             return jsonify({
+                'device_id': device_id,
                 'soil_moisture': row[0],
                 'last_updated': str(row[1])
             })
-        return jsonify({'message': '데이터 없음'}), 404
+        return jsonify({'message': f'{device_id} 토양수분 데이터가 없습니다'}), 404
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 
-# 5. 모든 센서 최신 값 한 번에 조회 (가장 유용!)
-@app.route('/api/latest', methods=['GET'])
-def get_all_latest():
+@app.route('/api/soil/list', methods=['GET'])
+def get_soil_device_list():
+    """토양수분 센서 디바이스 목록"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT device_id, COUNT(*) as data_count, MAX(received_at) as last_update
+            FROM soil_moisture_data 
+            GROUP BY device_id
+            ORDER BY last_update DESC
+        ''')
+        rows = cursor.fetchall()
+        conn.close()
+
+        if rows:
+            devices = []
+            for row in rows:
+                devices.append({
+                    'device_id': row[0],
+                    'data_count': row[1],
+                    'last_update': str(row[2])
+                })
+
+            return jsonify({
+                'total_devices': len(devices),
+                'devices': devices
+            })
+
+        return jsonify({'message': '토양수분 센서가 없습니다'}), 404
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# ========== 통합 조회 API ==========
+
+@app.route('/api/summary', methods=['GET'])
+def get_farm_summary():
+    """전체 농장 센서 요약"""
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
 
         # 최신 날씨 데이터
         cursor.execute('''
-            SELECT rain_detected, humidity, temperature, received_at 
+            SELECT device_id, rain_detected, humidity, temperature, received_at 
             FROM weather_data 
             ORDER BY received_at DESC 
             LIMIT 1
         ''')
         weather_row = cursor.fetchone()
 
-        # 최신 토양수분 데이터
+        # 모든 토양수분 센서의 최신 데이터
         cursor.execute('''
-            SELECT soil_moisture, received_at 
-            FROM soil_moisture_data 
-            ORDER BY received_at DESC 
-            LIMIT 1
+            SELECT device_id, soil_moisture, received_at,
+                   ROW_NUMBER() OVER (PARTITION BY device_id ORDER BY received_at DESC) as rn
+            FROM soil_moisture_data
         ''')
-        soil_row = cursor.fetchone()
+        all_soil_rows = cursor.fetchall()
+        soil_sensors = [row for row in all_soil_rows if row[3] == 1]
 
         conn.close()
 
         result = {}
 
+        # 날씨 데이터
         if weather_row:
-            result.update({
-                'rain_status': weather_row[0],
-                'humidity': weather_row[1],
-                'temperature': weather_row[2],
-                'weather_updated': str(weather_row[3])
-            })
+            result['weather'] = {
+                'device_id': weather_row[0],
+                'rain_status': weather_row[1],
+                'humidity': weather_row[2],
+                'temperature': weather_row[3],
+                'last_updated': str(weather_row[4])
+            }
 
-        if soil_row:
-            result.update({
-                'soil_moisture': soil_row[0],
-                'soil_updated': str(soil_row[1])
-            })
+        # 토양수분 데이터
+        if soil_sensors:
+            result['soil_sensors'] = []
+            for row in soil_sensors:
+                result['soil_sensors'].append({
+                    'device_id': row[0],
+                    'soil_moisture': row[1],
+                    'last_updated': str(row[2])
+                })
 
         if result:
             return jsonify(result)
-        return jsonify({'message': '데이터 없음'}), 404
+        return jsonify({'message': '데이터가 없습니다'}), 404
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 
-# 6. API 목록 확인용
+# ========== API 목록 ==========
+
 @app.route('/api', methods=['GET'])
 def api_list():
     return jsonify({
-        'message': '스마트팜 API 목록',
-        'apis': {
-            '/api/rain': '최신 강우 상태',
-            '/api/temperature': '최신 온도',
-            '/api/humidity': '최신 습도',
-            '/api/soil': '최신 토양수분',
-            '/api/latest': '모든 센서 최신 값',
-            '/dashboard': '전체 대시보드 데이터',
-            '/health': '서버 상태 확인'
+        'message': '스마트팜 센서 API',
+        'weather_apis': {
+            '/api/weather': '전체 날씨 데이터 (온도, 습도, 강우)',
+            '/api/weather/rain': '강우 상태만'
+        },
+        'soil_apis': {
+            '/api/soil/all': '모든 토양수분 센서 데이터',
+            '/api/soil/<device_id>': '특정 토양수분 센서',
+            '/api/soil/list': '토양수분 센서 목록'
+        },
+        'summary_apis': {
+            '/api/summary': '전체 농장 센서 요약',
+            '/health': '서버 상태'
         }
     })
 
