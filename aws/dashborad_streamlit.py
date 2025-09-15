@@ -277,7 +277,7 @@ def main():
         auto_refresh = st.checkbox("자동 새로고침 (30초)", value=True)
 
         if st.button("🔄 수동 새로고침"):
-            st.experimental_rerun()  # 페이지를 새로고침합니다
+            st.rerun()  # 페이지를 새로고침합니다
 
         st.markdown("---")  # 구분선
 
@@ -321,7 +321,7 @@ def main():
     if auto_refresh:
         # 30초마다 페이지를 자동으로 새로고침합니다
         time.sleep(30)
-        st.experimental_rerun()
+        st.rerun()
 
 
 # 이 부분은 Python 스크립트가 직접 실행될 때만 main() 함수를 호출합니다
