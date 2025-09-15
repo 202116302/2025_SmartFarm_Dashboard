@@ -14,7 +14,7 @@ DEVICES = {
     "192.168.0.107": "smartfarm_07",
     "192.168.0.108": "smartfarm_08",
     "192.168.0.109": "smartfarm_09",
-    
+
 }
 
 API_URL = "http://34.229.121.126:5000/api/soil"
