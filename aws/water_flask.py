@@ -123,7 +123,7 @@ template = '''
         {% endfor %}
 
         <div style="text-align: center; margin-top: 30px; color: #95a5a6;">
-            <p>💡 버튼을 클릭하면 해당 장치로 명령이 전송되고 결과를 확인할 수 있습니다</p>
+            <p>💡 버튼을 클릭하면 해당 장치로 직접 명령이 전송됩니다</p>
         </div>
     </div>
 
@@ -137,29 +137,32 @@ template = '''
             resultEl.style.display = 'none';
             button.disabled = true;
 
-            // Flask 앱을 통해 제어
-            fetch('/control/' + group + '/' + action)
-                .then(response => response.text())
-                .then(data => {
+            // 직접 아두이노로 요청
+            const arduinoUrl = `http://192.168.0.10${group}/relay/${action}`;
+            console.log('요청 URL:', arduinoUrl);
+
+            fetch(arduinoUrl, {
+                method: 'GET',
+                mode: 'no-cors'
+            })
+                .then(() => {
                     loadingEl.style.display = 'none';
-                    resultEl.textContent = data;
+                    resultEl.textContent = `${group}조 릴레이 ${action.toUpperCase()} 명령 전송완료!`;
                     resultEl.className = 'result success';
                     resultEl.style.display = 'inline-block';
                     button.disabled = false;
 
-                    // 3초 후 결과 메시지 숨기기
                     setTimeout(() => {
                         resultEl.style.display = 'none';
                     }, 3000);
                 })
                 .catch(error => {
                     loadingEl.style.display = 'none';
-                    resultEl.textContent = '오류: ' + error.message;
+                    resultEl.textContent = `오류: 아두이노 연결 실패 (${group}조)`;
                     resultEl.className = 'result error';
                     resultEl.style.display = 'inline-block';
                     button.disabled = false;
 
-                    // 5초 후 오류 메시지 숨기기
                     setTimeout(() => {
                         resultEl.style.display = 'none';
                     }, 5000);
@@ -174,26 +177,6 @@ template = '''
 @app.route('/')
 def index():
     return render_template_string(template)
-
-
-@app.route('/control/<int:group>/<action>')
-def control_relay(group, action):
-    """
-    선택사항: Flask 앱을 통해 릴레이를 제어하고 싶다면 이 함수를 사용
-    예: /control/1/on 또는 /control/1/off
-    """
-    if group < 1 or group > 8:
-        return "잘못된 그룹 번호입니다", 400
-
-    if action not in ['on', 'off']:
-        return "잘못된 액션입니다", 400
-
-    try:
-        url = f"http://192.168.0.10{group}/relay/{action}"
-        response = requests.get(url, timeout=5)
-        return f"{group}조 릴레이 {action} 명령 전송 완료: {response.status_code}"
-    except requests.exceptions.RequestException as e:
-        return f"오류 발생: {str(e)}", 500
 
 
 if __name__ == '__main__':
