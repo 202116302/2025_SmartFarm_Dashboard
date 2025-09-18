@@ -107,13 +107,12 @@ if 'posts' not in st.session_state:
 # 스마트팜 장치 그룹 정의
 SMARTFARM_GROUPS = {
     1: {
-        'name': '2반 (smartfarm01~04)',
-        'devices': ['smartfarm_01', 'smartfarm_02', 'smartfarm_03', 'smartfarm_04'],
-        'team_name': ['잘자라조(1조)', '순창고추갱(2조)', '도겸공주와4왕자(3조)', '생태보스 야르~(4조)'],
+        'name': '1반 (smartfarm01~04)',
+        'devices': ['smartfarm01', 'smartfarm02', 'smartfarm03', 'smartfarm04'],
         'emoji': '🌱'
     },
     2: {
-        'name': '4반 (smartfarm05~08)',
+        'name': '2반 (smartfarm05~08)',
         'devices': ['smartfarm05', 'smartfarm06', 'smartfarm07', 'smartfarm08'],
         'emoji': '🌿'
     }
@@ -296,9 +295,10 @@ def display_weather_data(class_num):
         st.warning(f"{group_info['name']} 날씨 데이터를 불러올 수 없습니다.")
 
 
-def display_soil_data(class_num):
+def display_soil_data(class_num, chart_key_suffix=""):
     """
     선택된 반의 토양수분 센서 데이터를 표시합니다.
+    chart_key_suffix: plotly_chart의 고유 키를 위한 접미사
     """
     group_info = SMARTFARM_GROUPS[class_num]
 
@@ -379,7 +379,7 @@ def display_soil_data(class_num):
                 height=400
             )
 
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, use_container_width=True, key=f"soil_chart_class_{class_num}{chart_key_suffix}")
 
     else:
         st.warning(f"{group_info['name']} 토양수분 데이터를 불러올 수 없습니다.")
@@ -674,7 +674,7 @@ def main():
         # 선택된 반의 실시간 데이터 표시
         display_weather_data(current_class)
         st.markdown("---")
-        display_soil_data(current_class)
+        display_soil_data(current_class, "_main")
 
     with tab2:
         # 반별 비교 탭
@@ -684,11 +684,11 @@ def main():
 
         with col1:
             st.markdown("### 🌱 1반 데이터")
-            display_soil_data(1)
+            display_soil_data(1, "_compare_left")
 
         with col2:
             st.markdown("### 🌿 2반 데이터")
-            display_soil_data(2)
+            display_soil_data(2, "_compare_right")
 
     with tab3:
         st.subheader("📈 상세 데이터 분석")
