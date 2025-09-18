@@ -312,7 +312,7 @@ def main():
             st.metric("오늘 평균 온도", "23.5°C", "↑2.1°C")
         with col2:
             st.metric("오늘 평균 습도", "65.2%", "↓3.4%")
-`
+
     with tab3:
         # 시스템 상태 표시
         display_system_status()
