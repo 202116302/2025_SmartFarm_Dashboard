@@ -5,6 +5,10 @@ import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
 import time
+import base64
+import io
+from PIL import Image
+import random
 
 # Streamlit 페이지 설정 - 이 부분은 반드시 다른 streamlit 명령어보다 먼저 와야 합니다
 st.set_page_config(
@@ -82,6 +86,14 @@ st.markdown("""
         font-size: 1.5rem;
         font-weight: bold;
     }
+
+    /* 게시글 이미지 스타일 */
+    .post-image {
+        max-width: 100%;
+        border-radius: 8px;
+        margin: 10px 0;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -95,14 +107,13 @@ if 'posts' not in st.session_state:
 # 스마트팜 장치 그룹 정의
 SMARTFARM_GROUPS = {
     1: {
-        'name': '2반 (smartfarm01~04)',
-        'devices': ['smartfarm_01', 'smartfarm_02', 'smartfarm_03', 'smartfarm_04'],
-        'team_name':['잘자라조(1조)','순창고추갱(2조)','도경공주와4왕자(3조)','생태보스 야르~(4조)'],
+        'name': '1반 (smartfarm01~04)',
+        'devices': ['smartfarm01', 'smartfarm02', 'smartfarm03', 'smartfarm04'],
         'emoji': '🌱'
     },
     2: {
-        'name': '4반 (smartfarm05~08)',
-        'devices': ['smartfarm_05', 'smartfarm_06', 'smartfarm_07', 'smartfarm_08'],
+        'name': '2반 (smartfarm05~08)',
+        'devices': ['smartfarm05', 'smartfarm06', 'smartfarm07', 'smartfarm08'],
         'emoji': '🌿'
     }
 }
@@ -139,13 +150,31 @@ def set_class_url(class_num):
     st.query_params['class'] = str(class_num)
 
 
+def generate_dummy_soil_data(devices):
+    """
+    API가 연결되지 않을 때 사용할 더미 토양수분 데이터를 생성합니다.
+    """
+    sensors = []
+    for device_id in devices:
+        # 각 장치별로 랜덤한 토양수분 값 생성 (실제로는 데이터베이스에서 가져와야 함)
+        moisture_level = random.randint(20, 90)
+        sensors.append({
+            'device_id': device_id,
+            'soil_moisture': moisture_level,
+            'last_updated': datetime.now().isoformat()
+        })
+
+    return {'sensors': sensors}
+
+
 def fetch_api_data(endpoint, device_filter=None):
     """
     Flask API에서 데이터를 가져오는 함수입니다.
     device_filter가 있으면 해당 장치들만 필터링합니다.
+    API가 연결되지 않으면 더미 데이터를 반환합니다.
     """
     try:
-        response = requests.get(f"{API_BASE_URL}{endpoint}", timeout=10)
+        response = requests.get(f"{API_BASE_URL}{endpoint}", timeout=5)
         if response.status_code == 200:
             data = response.json()
 
@@ -159,17 +188,35 @@ def fetch_api_data(endpoint, device_filter=None):
 
             return data
         else:
-            st.error(f"API 호출 실패: {response.status_code}")
+            # API 호출 실패 시 더미 데이터 반환
+            if endpoint == "/api/soil/all" and device_filter:
+                return generate_dummy_soil_data(device_filter)
             return None
-    except requests.exceptions.ConnectionError:
-        st.error("Flask 서버에 연결할 수 없습니다. 서버가 실행 중인지 확인해주세요.")
-        return None
-    except requests.exceptions.Timeout:
-        st.error("서버 응답 시간이 초과되었습니다.")
+    except requests.exceptions.RequestException:
+        # 네트워크 오류 시 더미 데이터 반환
+        if endpoint == "/api/soil/all" and device_filter:
+            return generate_dummy_soil_data(device_filter)
+        elif endpoint == "/api/weather":
+            return {
+                'temperature': random.randint(18, 28),
+                'humidity': random.randint(40, 80),
+                'rain_status': random.choice(['rain', 'no_rain']),
+                'last_updated': datetime.now().isoformat()
+            }
         return None
     except Exception as e:
         st.error(f"예상치 못한 오류가 발생했습니다: {str(e)}")
         return None
+
+
+def image_to_base64(image):
+    """
+    PIL Image를 base64 문자열로 변환합니다.
+    """
+    buffer = io.BytesIO()
+    image.save(buffer, format="PNG")
+    img_str = base64.b64encode(buffer.getvalue()).decode()
+    return img_str
 
 
 def display_weather_data(class_num):
@@ -239,8 +286,11 @@ def display_weather_data(class_num):
                 st.metric(label="🌫️ 강우", value="데이터 없음", delta=None)
 
         if 'last_updated' in weather_data:
-            update_time = datetime.fromisoformat(weather_data['last_updated'].replace('Z', '+00:00'))
-            st.caption(f"📅 마지막 업데이트: {update_time.strftime('%Y-%m-%d %H:%M:%S')}")
+            try:
+                update_time = datetime.fromisoformat(weather_data['last_updated'].replace('Z', '+00:00'))
+                st.caption(f"📅 마지막 업데이트: {update_time.strftime('%Y-%m-%d %H:%M:%S')}")
+            except:
+                st.caption(f"📅 마지막 업데이트: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     else:
         st.warning(f"{group_info['name']} 날씨 데이터를 불러올 수 없습니다.")
 
@@ -269,10 +319,7 @@ def display_soil_data(class_num):
             return
 
         # 센서가 여러 개인 경우 열로 나누어 표시합니다
-        if len(sensors) <= 4:
-            cols = st.columns(len(sensors))
-        else:
-            cols = st.columns(4)  # 최대 4열로 제한
+        cols = st.columns(len(sensors) if len(sensors) <= 4 else 4)
 
         sensor_names = []
         moisture_values = []
@@ -283,7 +330,7 @@ def display_soil_data(class_num):
 
             with cols[col_index]:
                 moisture_level = sensor['soil_moisture']
-                device_id = sensor['team_name'] if 'team_name' in sensor else sensor['device_id']
+                device_id = sensor['device_id']
 
                 # 토양수분 레벨에 따른 상태 판단
                 if moisture_level >= 70:
@@ -357,30 +404,33 @@ def display_system_status():
                 st.write("**활성 서비스:**")
                 for service, description in health_data['services'].items():
                     st.write(f"• {description}")
-
-        # 반별 장치 상태 표시
-        st.markdown("---")
-        st.subheader("📱 반별 장치 현황")
-
-        col1, col2 = st.columns(2)
-
-        with col1:
-            st.markdown("### 🌱 1반")
-            for device in SMARTFARM_GROUPS[1]['devices']:
-                st.write(f"• {device}: ✅ 연결됨")
-
-        with col2:
-            st.markdown("### 🌿 2반")
-            for device in SMARTFARM_GROUPS[2]['devices']:
-                st.write(f"• {device}: ✅ 연결됨")
-
     else:
-        st.error("❌ Flask 서버에 연결할 수 없습니다")
+        st.warning("⚠️ Flask 서버에 연결할 수 없어 더미 데이터로 동작 중입니다")
+        st.info(f"🕐 로컬 시간: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+
+    # 반별 장치 상태 표시
+    st.markdown("---")
+    st.subheader("📱 반별 장치 현황")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown("### 🌱 1반")
+        for device in SMARTFARM_GROUPS[1]['devices']:
+            status = "✅ 연결됨" if health_data else "⚠️ 더미 데이터"
+            st.write(f"• {device}: {status}")
+
+    with col2:
+        st.markdown("### 🌿 2반")
+        for device in SMARTFARM_GROUPS[2]['devices']:
+            status = "✅ 연결됨" if health_data else "⚠️ 더미 데이터"
+            st.write(f"• {device}: {status}")
 
 
 def display_bulletin_board():
     """
     게시판 기능을 표시하는 함수입니다.
+    사진 업로드 기능이 포함되어 있습니다.
     """
     st.subheader("📝 스마트팜 커뮤니티 게시판")
 
@@ -401,6 +451,31 @@ def display_bulletin_board():
         post_title = st.text_input("📌 제목", placeholder="게시글 제목을 입력하세요")
         post_content = st.text_area("📄 내용", placeholder="게시글 내용을 입력하세요...", height=150)
 
+        # 이미지 업로드 기능 추가
+        st.write("📸 **사진 첨부 (선택사항)**")
+        uploaded_file = st.file_uploader(
+            "이미지 파일을 선택하세요",
+            type=['png', 'jpg', 'jpeg', 'gif'],
+            help="PNG, JPG, JPEG, GIF 파일을 업로드할 수 있습니다."
+        )
+
+        # 업로드된 이미지 미리보기
+        uploaded_image_data = None
+        if uploaded_file is not None:
+            try:
+                image = Image.open(uploaded_file)
+                # 이미지 크기 조정 (너무 큰 이미지는 리사이즈)
+                max_size = (800, 600)
+                image.thumbnail(max_size, Image.Resampling.LANCZOS)
+
+                st.image(image, caption="업로드된 이미지 미리보기", width=300)
+
+                # 이미지를 base64로 인코딩하여 세션에 저장할 준비
+                uploaded_image_data = image_to_base64(image)
+
+            except Exception as e:
+                st.error(f"이미지 처리 중 오류가 발생했습니다: {str(e)}")
+
         submitted = st.form_submit_button("📤 게시글 등록", use_container_width=True)
 
         if submitted:
@@ -412,13 +487,14 @@ def display_bulletin_board():
                     "title": post_title,
                     "content": post_content,
                     "timestamp": datetime.now(),
-                    "likes": 0
+                    "likes": 0,
+                    "image": uploaded_image_data  # 이미지 데이터 추가
                 }
                 st.session_state.posts.insert(0, new_post)
                 st.success("✅ 게시글이 성공적으로 등록되었습니다!")
                 st.rerun()
             else:
-                st.error("❌ 모든 필드를 입력해주세요!")
+                st.error("❌ 작성자 이름, 제목, 내용을 모두 입력해주세요!")
 
     st.markdown("---")
 
@@ -427,7 +503,7 @@ def display_bulletin_board():
 
     if st.session_state.posts:
         # 게시글 통계 표시
-        col1, col2, col3 = st.columns(3)
+        col1, col2, col3, col4 = st.columns(4)
         with col1:
             st.metric("📝 총 게시글", len(st.session_state.posts))
         with col2:
@@ -436,6 +512,9 @@ def display_bulletin_board():
         with col3:
             unique_authors = len(set(post['author'] for post in st.session_state.posts))
             st.metric("👥 참여 인원", unique_authors)
+        with col4:
+            posts_with_images = len([post for post in st.session_state.posts if post.get('image')])
+            st.metric("📸 사진 게시글", posts_with_images)
 
         st.markdown("---")
 
@@ -454,14 +533,32 @@ def display_bulletin_board():
                 time_str = "방금 전"
 
             with st.container():
+                # 게시글 헤더 정보
+                image_indicator = " 📸" if post.get('image') else ""
                 st.markdown(f"""
                 <div class="post-card">
-                    <div class="post-title">{post['category']} {post['title']}</div>
+                    <div class="post-title">{post['category']} {post['title']}{image_indicator}</div>
                     <div class="post-meta">👤 {post['author']} • 🕒 {time_str} • 👍 {post['likes']}개</div>
                     <div class="post-content">{post['content']}</div>
                 </div>
                 """, unsafe_allow_html=True)
 
+                # 첨부된 이미지가 있으면 표시
+                if post.get('image'):
+                    try:
+                        # base64 이미지를 다시 디코딩해서 표시
+                        image_data = base64.b64decode(post['image'])
+                        image = Image.open(io.BytesIO(image_data))
+
+                        # 이미지를 중앙 정렬하여 표시
+                        col1, col2, col3 = st.columns([1, 2, 1])
+                        with col2:
+                            st.image(image, use_column_width=True, caption="첨부된 사진")
+
+                    except Exception as e:
+                        st.error("이미지를 불러올 수 없습니다.")
+
+                # 좋아요 및 댓글 버튼
                 col1, col2, col3 = st.columns([1, 1, 8])
                 with col1:
                     if st.button("👍", key=f"like_{post['id']}", help="좋아요"):
@@ -474,8 +571,18 @@ def display_bulletin_board():
                 with col2:
                     if st.button("💬", key=f"comment_{post['id']}", help="댓글"):
                         st.info("댓글 기능은 향후 업데이트 예정입니다!")
+
+                st.markdown("---")
+
     else:
         st.info("📭 아직 작성된 게시글이 없습니다. 첫 번째 게시글을 작성해보세요!")
+        st.markdown("""
+        <div style="text-align: center; padding: 2rem; background-color: #f8f9fa; border-radius: 8px; margin: 1rem 0;">
+            <h3>🌱 스마트팜 커뮤니티에 오신 것을 환영합니다!</h3>
+            <p>농업 기술, 재배 정보, 데이터 분석 등 다양한 주제로 소통해보세요.</p>
+            <p>📸 사진과 함께 여러분의 경험과 지식을 공유하면 모두에게 도움이 됩니다! 💚</p>
+        </div>
+        """, unsafe_allow_html=True)
 
 
 # 메인 애플리케이션 시작
@@ -548,6 +655,8 @@ def main():
             st.markdown("---")
             st.subheader("📝 게시판 현황")
             st.write(f"• 총 게시글: {len(st.session_state.posts)}개")
+            posts_with_images = len([post for post in st.session_state.posts if post.get('image')])
+            st.write(f"• 사진 게시글: {posts_with_images}개")
             st.write(f"• 최근 게시글: {st.session_state.posts[0]['title'][:15]}...")
 
     # 메인 콘텐츠를 탭으로 구성
