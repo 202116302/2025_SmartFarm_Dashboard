@@ -108,12 +108,12 @@ if 'posts' not in st.session_state:
 SMARTFARM_GROUPS = {
     1: {
         'name': '1반 (smartfarm01~04)',
-        'devices': ['smartfarm01', 'smartfarm02', 'smartfarm03', 'smartfarm04'],
+        'devices': ['smartfarm_01', 'smartfarm_02', 'smartfarm_03', 'smartfarm_04'],
         'emoji': '🌱'
     },
     2: {
         'name': '2반 (smartfarm05~08)',
-        'devices': ['smartfarm05', 'smartfarm06', 'smartfarm07', 'smartfarm08'],
+        'devices': ['smartfarm_05', 'smartfarm_06', 'smartfarm_07', 'smartfarm_08'],
         'emoji': '🌿'
     }
 }
