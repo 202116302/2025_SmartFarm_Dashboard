@@ -107,12 +107,12 @@ if 'posts' not in st.session_state:
 # 스마트팜 장치 그룹 정의
 SMARTFARM_GROUPS = {
     1: {
-        'name': '1반 (smartfarm01~04)',
+        'name': '2반 (smartfarm01~04)',
         'devices': ['smartfarm_01', 'smartfarm_02', 'smartfarm_03', 'smartfarm_04'],
         'emoji': '🌱'
     },
     2: {
-        'name': '2반 (smartfarm05~08)',
+        'name': '4반 (smartfarm05~08)',
         'devices': ['smartfarm_05', 'smartfarm_06', 'smartfarm_07', 'smartfarm_08'],
         'emoji': '🌿'
     }
@@ -136,7 +136,7 @@ def get_current_class():
         except ValueError:
             pass
 
-    # 세션 상태에서 가져오기 (기본값은 1반)
+    # 세션 상태에서 가져오기 (기본값은 2반)
     if 'selected_class' not in st.session_state:
         st.session_state.selected_class = 1
 
@@ -416,13 +416,13 @@ def display_system_status():
     col1, col2 = st.columns(2)
 
     with col1:
-        st.markdown("### 🌱 1반")
+        st.markdown("### 🌱 2반")
         for device in SMARTFARM_GROUPS[1]['devices']:
             status = "✅ 연결됨" if health_data else "⚠️ 더미 데이터"
             st.write(f"• {device}: {status}")
 
     with col2:
-        st.markdown("### 🌿 2반")
+        st.markdown("### 🌿 4반")
         for device in SMARTFARM_GROUPS[2]['devices']:
             status = "✅ 연결됨" if health_data else "⚠️ 더미 데이터"
             st.write(f"• {device}: {status}")
@@ -446,7 +446,7 @@ def display_bulletin_board():
 
         with col2:
             post_category = st.selectbox("📁 카테고리",
-                                         ["🌱 1반 재배정보", "🌿 2반 재배정보", "🔧 기술 문의",
+                                         ["🌱 2반 재배정보", "🌿 4반 재배정보", "🔧 기술 문의",
                                           "📊 데이터 분석", "💡 아이디어 제안", "🗨️ 자유 게시"])
 
         post_title = st.text_input("📌 제목", placeholder="게시글 제목을 입력하세요")
@@ -611,14 +611,14 @@ def main():
         col1, col2 = st.columns(2)
 
         with col1:
-            if st.button("🌱 1반", key="class1_btn",
+            if st.button("🌱 2반", key="class1_btn",
                          type="primary" if current_class == 1 else "secondary"):
                 set_class_url(1)
                 st.session_state.selected_class = 1
                 st.rerun()
 
         with col2:
-            if st.button("🌿 2반", key="class2_btn",
+            if st.button("🌿 4반", key="class2_btn",
                          type="primary" if current_class == 2 else "secondary"):
                 set_class_url(2)
                 st.session_state.selected_class = 2
@@ -626,8 +626,8 @@ def main():
 
         # URL 정보 표시
         st.markdown("**🔗 직접 접속 링크:**")
-        st.markdown(f"• [1반 대시보드](?class=1)")
-        st.markdown(f"• [2반 대시보드](?class=2)")
+        st.markdown(f"• [2반 대시보드](?class=1)")
+        st.markdown(f"• [4반 대시보드](?class=2)")
 
         st.markdown("---")
 
@@ -678,16 +678,16 @@ def main():
 
     with tab2:
         # 반별 비교 탭
-        st.subheader("🔄 1반 vs 2반 비교")
+        st.subheader("🔄 2반 vs 4반 비교")
 
         col1, col2 = st.columns(2)
 
         with col1:
-            st.markdown("### 🌱 1반 데이터")
+            st.markdown("### 🌱 2반 데이터")
             display_soil_data(1, "_compare_left")
 
         with col2:
-            st.markdown("### 🌿 2반 데이터")
+            st.markdown("### 🌿 4반 데이터")
             display_soil_data(2, "_compare_right")
 
     with tab3:
