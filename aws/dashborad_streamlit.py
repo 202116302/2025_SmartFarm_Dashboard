@@ -331,7 +331,7 @@ def display_soil_data(class_num):
 
             with cols[col_index]:
                 moisture_level = sensor['soil_moisture']
-                device_id = sensor['team_name'] if 'team_name' in sensor else sensor['device_id']
+                device_id = sensor['device_id']
 
                 # 토양수분 레벨에 따른 상태 판단
                 if moisture_level >= 70:
