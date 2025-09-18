@@ -107,12 +107,13 @@ if 'posts' not in st.session_state:
 # 스마트팜 장치 그룹 정의
 SMARTFARM_GROUPS = {
     1: {
-        'name': '1반 (smartfarm01~04)',
-        'devices': ['smartfarm01', 'smartfarm02', 'smartfarm03', 'smartfarm04'],
+        'name': '2반 (smartfarm01~04)',
+        'devices': ['smartfarm_01', 'smartfarm_02', 'smartfarm_03', 'smartfarm_04'],
+        'team_name': ['잘자라조(1조)', '순창고추갱(2조)', '도겸공주와4왕자(3조)', '생태보스 야르~(4조)'],
         'emoji': '🌱'
     },
     2: {
-        'name': '2반 (smartfarm05~08)',
+        'name': '4반 (smartfarm05~08)',
         'devices': ['smartfarm05', 'smartfarm06', 'smartfarm07', 'smartfarm08'],
         'emoji': '🌿'
     }
@@ -330,7 +331,7 @@ def display_soil_data(class_num):
 
             with cols[col_index]:
                 moisture_level = sensor['soil_moisture']
-                device_id = sensor['device_id']
+                device_id = sensor['team_name'] if 'team_name' in sensor else sensor['device_id']
 
                 # 토양수분 레벨에 따른 상태 판단
                 if moisture_level >= 70:
