@@ -44,6 +44,7 @@ template = '''
         .button-container {
             display: flex;
             gap: 10px;
+            align-items: center;
         }
         .btn {
             padding: 10px 20px;
@@ -51,8 +52,6 @@ template = '''
             border-radius: 5px;
             cursor: pointer;
             font-weight: bold;
-            text-decoration: none;
-            display: inline-block;
             transition: all 0.3s;
         }
         .btn-on {
@@ -69,10 +68,37 @@ template = '''
         .btn-off:hover {
             background-color: #c0392b;
         }
+        .btn:disabled {
+            background-color: #bdc3c7;
+            cursor: not-allowed;
+        }
         .status {
             margin-left: 20px;
             font-size: 14px;
             color: #7f8c8d;
+        }
+        .result {
+            margin-left: 20px;
+            font-size: 14px;
+            padding: 5px 10px;
+            border-radius: 3px;
+            display: none;
+        }
+        .result.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .result.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .loading {
+            display: none;
+            margin-left: 10px;
+            font-size: 14px;
+            color: #6c757d;
         }
     </style>
 </head>
@@ -84,21 +110,63 @@ template = '''
         <div class="group">
             <h3>{{ i }}조 화분 물주기</h3>
             <div class="button-container">
-                <a href="http://192.168.0.10{{ i }}/relay/on" class="btn btn-on" target="_blank">
+                <button class="btn btn-on" onclick="controlRelay({{ i }}, 'on', this)">
                     💧 물주기 ON
-                </a>
-                <a href="http://192.168.0.10{{ i }}/relay/off" class="btn btn-off" target="_blank">
+                </button>
+                <button class="btn btn-off" onclick="controlRelay({{ i }}, 'off', this)">
                     ⏹️ 물주기 OFF
-                </a>
+                </button>
+                <span class="loading" id="loading-{{ i }}">⏳ 전송중...</span>
                 <span class="status">IP: 192.168.0.10{{ i }}</span>
+                <div class="result" id="result-{{ i }}"></div>
             </div>
         </div>
         {% endfor %}
 
         <div style="text-align: center; margin-top: 30px; color: #95a5a6;">
-            <p>💡 버튼을 클릭하면 해당 장치로 직접 명령이 전송됩니다</p>
+            <p>💡 버튼을 클릭하면 해당 장치로 명령이 전송되고 결과를 확인할 수 있습니다</p>
         </div>
     </div>
+
+    <script>
+        function controlRelay(group, action, button) {
+            const loadingEl = document.getElementById('loading-' + group);
+            const resultEl = document.getElementById('result-' + group);
+
+            // 로딩 표시
+            loadingEl.style.display = 'inline';
+            resultEl.style.display = 'none';
+            button.disabled = true;
+
+            // Flask 앱을 통해 제어
+            fetch('/control/' + group + '/' + action)
+                .then(response => response.text())
+                .then(data => {
+                    loadingEl.style.display = 'none';
+                    resultEl.textContent = data;
+                    resultEl.className = 'result success';
+                    resultEl.style.display = 'inline-block';
+                    button.disabled = false;
+
+                    // 3초 후 결과 메시지 숨기기
+                    setTimeout(() => {
+                        resultEl.style.display = 'none';
+                    }, 3000);
+                })
+                .catch(error => {
+                    loadingEl.style.display = 'none';
+                    resultEl.textContent = '오류: ' + error.message;
+                    resultEl.className = 'result error';
+                    resultEl.style.display = 'inline-block';
+                    button.disabled = false;
+
+                    // 5초 후 오류 메시지 숨기기
+                    setTimeout(() => {
+                        resultEl.style.display = 'none';
+                    }, 5000);
+                });
+        }
+    </script>
 </body>
 </html>
 '''
@@ -130,4 +198,4 @@ def control_relay(group, action):
 
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8001, debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=True)
